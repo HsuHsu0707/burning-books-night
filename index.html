@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>燒書之夜</title>
+  <link rel="stylesheet" href="css/game.css">
+</head>
+<body data-screen="title">
+  <canvas id="view" width="1280" height="720" aria-label="遊戲畫面"></canvas>
+
+  <section class="screen on" data-screen="title" id="screen-title">
+    <article class="folder">
+      <div class="seal">查</div>
+      <p class="eyebrow">斗南　一九五二—一九五三</p>
+      <h1>燒書之夜</h1>
+      <div class="row">
+        <button type="button" class="stamp" id="btn-letter">拆開委託信</button>
+        <button type="button" class="ghost hidden" id="btn-continue">繼續調查</button>
+        <button type="button" class="linkish hidden" id="btn-reset">從頭開始</button>
+      </div>
+      <p class="fine">桌面瀏覽器可玩的參考示範。直接打開這個檔案即可。</p>
+    </article>
+  </section>
+
+  <section class="screen" data-screen="letter" id="screen-letter">
+    <article class="folder letter">
+      <p class="eyebrow">委託信　·　民國一一五年</p>
+      <div id="letter-body"></div>
+      <div class="row">
+        <button type="button" class="stamp" id="btn-to-help">操作說明</button>
+        <button type="button" class="ghost hidden" id="btn-resume">回到現場</button>
+        <button type="button" class="ghost" id="btn-back-title">回到封面</button>
+      </div>
+    </article>
+  </section>
+
+  <section class="screen" data-screen="help" id="screen-help">
+    <article class="folder letter">
+      <p class="eyebrow">操作與教學</p>
+      <h2>怎麼調查</h2>
+      <ul class="controls-list">
+        <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 或方向鍵　移動。點空地也會走過去。</li>
+        <li><kbd>F</kbd> 調查身邊的人、信和物件。再按一次 <kbd>F</kbd> 或 <kbd>Esc</kbd> 把話關掉。</li>
+        <li><kbd>空白鍵</kbd> 站在發光的圓上放下懷錶，站回原地再按一次收回。</li>
+        <li><kbd>Q</kbd> <kbd>E</kbd> 轉動懷錶的扇形。扇形裡面是過去，外面仍是現在。</li>
+        <li><kbd>Tab</kbd> 紀錄簿　　<kbd>M</kbd> 地圖。只有現在能換地方。</li>
+      </ul>
+      <p class="body">關鍵字拖進人物檔案的格子。名字拖進劇情的空格，或拖進人物關係網的空格。填對的名字留在你放下的那一格。</p>
+      <p class="footnote">宿舍和後院是同一張地圖，各有一個懷錶放置處。師母家只有現在。</p>
+      <div class="row">
+        <button type="button" class="stamp" id="btn-map">前往斗南</button>
+        <button type="button" class="ghost hidden" id="btn-help-resume">回到現場</button>
+        <button type="button" class="ghost" id="btn-help-letter">回到委託信</button>
+      </div>
+    </article>
+  </section>
+
+  <section class="screen" data-screen="map" id="screen-map">
+    <div class="map-wrap">
+      <div class="map-head">
+        <div>
+          <h2>斗南</h2>
+          <p>點紅點進入。一張總圖，四個地方。</p>
+        </div>
+        <button type="button" class="ghost" id="btn-map-title">封面</button>
+      </div>
+      <div class="map-frame">
+        <svg class="townmap" viewBox="0 0 1100 720" role="img" aria-label="斗南示意地圖">
+          <rect width="1100" height="720" fill="#e7d3ae"/>
+          <g fill="#d7e0c6" stroke="#c3d0b2" stroke-width="1">
+            <rect x="36" y="180" width="250" height="250"/>
+            <rect x="250" y="40" width="320" height="110"/>
+            <rect x="860" y="220" width="200" height="250"/>
+            <rect x="300" y="560" width="280" height="70"/>
+          </g>
+          <path d="M0 612 C 140 575, 230 650, 390 612 S 620 555, 820 625 S 1100 585, 1100 600" fill="none" stroke="#7f97a8" stroke-width="16" stroke-linecap="round"/>
+          <path d="M20 70 C 70 150, 30 230, 110 310 S 40 430, 20 470" fill="none" stroke="#8aa4b4" stroke-width="6" stroke-linecap="round"/>
+          <g stroke="#c2b08e" stroke-width="8" fill="none">
+            <path d="M250 248 H 880"/>
+            <path d="M280 400 H 820"/>
+            <path d="M520 150 V 560"/>
+            <path d="M360 248 V 400"/>
+            <path d="M680 248 V 520"/>
+          </g>
+          <g fill="#f4ead8" stroke="#b79a74" stroke-width="1">
+            <rect x="330" y="190" width="36" height="28"/><rect x="372" y="188" width="28" height="32"/>
+            <rect x="410" y="200" width="40" height="24"/><rect x="456" y="192" width="30" height="30"/>
+            <rect x="540" y="186" width="34" height="26"/><rect x="580" y="196" width="42" height="22"/>
+            <rect x="630" y="180" width="30" height="34"/><rect x="668" y="188" width="36" height="26"/>
+            <rect x="330" y="280" width="40" height="30"/><rect x="380" y="300" width="28" height="36"/>
+            <rect x="430" y="286" width="46" height="24"/><rect x="490" y="292" width="24" height="32"/>
+            <rect x="560" y="300" width="38" height="26"/><rect x="610" y="286" width="30" height="34"/>
+            <rect x="660" y="310" width="44" height="22"/>
+            <rect x="340" y="430" width="36" height="28"/><rect x="390" y="450" width="42" height="24"/>
+            <rect x="450" y="436" width="30" height="32"/><rect x="500" y="460" width="40" height="22"/>
+            <rect x="560" y="440" width="34" height="30"/><rect x="610" y="455" width="46" height="24"/>
+            <rect x="670" y="430" width="28" height="34"/>
+          </g>
+          <g fill="#efe2c4" stroke="#8d6b3e" stroke-width="1.2">
+            <rect x="400" y="78" width="46" height="34"/>
+            <rect x="452" y="86" width="38" height="28"/>
+            <rect x="430" y="116" width="52" height="22"/>
+          </g>
+          <g stroke="#5c342c" fill="none" stroke-width="2.4">
+            <path d="M792 24 V 660"/>
+            <path d="M808 24 V 660"/>
+          </g>
+          <g stroke="#5c342c" stroke-width="2">
+            <path d="M792 70 H 808"/><path d="M792 110 H 808"/><path d="M792 150 H 808"/>
+            <path d="M792 190 H 808"/><path d="M792 230 H 808"/><path d="M792 270 H 808"/>
+            <path d="M792 350 H 808"/><path d="M792 390 H 808"/><path d="M792 430 H 808"/>
+            <path d="M792 470 H 808"/><path d="M792 510 H 808"/><path d="M792 550 H 808"/>
+          </g>
+          <rect x="768" y="292" width="64" height="32" fill="#f7f0e2" stroke="#5c342c"/>
+          <path d="M430 250 C 300 280, 180 310, 40 336" fill="none" stroke="#5c342c" stroke-width="2.5"/>
+          <circle cx="990" cy="150" r="48" fill="#e4ecd4" stroke="#8aa07a"/>
+          <g fill="#5c4632" font-size="15" font-family="WenQuanYi Micro Hei, sans-serif">
+            <text x="250" y="238">中山路</text>
+            <text x="250" y="392">平和路</text>
+            <text x="500" y="678">大湖口溪</text>
+            <text x="748" y="284">斗南站</text>
+            <text x="36" y="310">糖鐵斗南線</text>
+            <text x="36" y="328">往虎尾</text>
+            <text x="400" y="68">斗南中學</text>
+          </g>
+          <g fill="none" stroke="#6b5438" stroke-width="1.2">
+            <rect x="28" y="28" width="168" height="48"/>
+          </g>
+          <text x="40" y="50" fill="#3a2a1c" font-size="16" font-family="WenQuanYi Micro Hei, sans-serif">斗南街略圖</text>
+          <text x="40" y="68" fill="#6e5b48" font-size="11" font-family="WenQuanYi Micro Hei, sans-serif">示意重繪，非實測</text>
+        </svg>
+        <button type="button" class="pin" data-loc="dorm" style="left:42%;top:17%">
+          <span class="pin-label">斗南中學
+教員宿舍＋後院<span class="pin-status" data-status="dorm">尚未前往</span></span>
+          <span class="pin-dot"></span>
+        </button>
+        <button type="button" class="pin" data-loc="sugar" style="left:9%;top:48%">
+          <span class="pin-label">糖廠倉庫與甘蔗田<span class="pin-status" data-status="sugar">尚未前往</span></span>
+          <span class="pin-dot"></span>
+        </button>
+        <button type="button" class="pin" data-loc="li" style="left:57%;top:62%">
+          <span class="pin-label">李家<span class="pin-status" data-status="li">尚未前往</span></span>
+          <span class="pin-dot"></span>
+        </button>
+        <button type="button" class="pin leftish" data-loc="shimu" style="left:86%;top:52%">
+          <span class="pin-label">師母家<span class="pin-status" data-status="shimu">尚未前往</span></span>
+          <span class="pin-dot"></span>
+        </button>
+      </div>
+      <p class="map-note">底圖依所附舊地圖重繪。糖鐵斗南線往西接通虎尾糖廠。斗南站只作地標。四個地方一開始都能進。師母家只有現在。</p>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="ending" id="screen-ending">
+    <article class="folder ending-folder">
+      <div id="ending-body"></div>
+      <div class="row" style="margin-top:16px">
+        <button type="button" class="stamp" id="end-map">回到地圖</button>
+        <button type="button" class="ghost" id="end-title">回到封面</button>
+      </div>
+    </article>
+  </section>
+
+  <div id="hud" class="hidden">
+    <div class="plate locplate">
+      <h2 id="loc-name">教員宿舍＋後院</h2>
+      <div class="era" id="loc-era">現在　二〇二六</div>
+      <p class="goal" id="loc-goal"></p>
+    </div>
+    <div class="plate pctplate">
+      <div class="k">還原度</div>
+      <strong id="hud-pct">0%</strong>
+      <div class="bar"><span id="hud-bar"></span></div>
+      <div class="k" id="hud-clues">線索 0/0</div>
+    </div>
+    <div class="sidebtns">
+      <button type="button" id="btn-book">紀錄簿</button>
+      <button type="button" id="btn-leave">地圖</button>
+    </div>
+    <div class="hintbar">F 調查　空白鍵 懷錶　Q E 轉分界　Tab 紀錄簿　M 地圖</div>
+    <div class="prompt" id="prompt"></div>
+    <button type="button" id="btn-watch">懷錶</button>
+  </div>
+
+  <aside id="book" class="ledger hidden" aria-label="紀錄簿">
+    <header class="bookhead">
+      <h2>燒書之夜</h2>
+      <nav>
+        <button type="button" data-tab="map">地圖</button>
+        <button type="button" data-tab="bag">背包</button>
+        <button type="button" data-tab="people">人物檔案</button>
+        <button type="button" data-tab="soup">劇情</button>
+      </nav>
+      <div class="bookmeta">
+        <div id="book-era" class="bookera"></div>
+        <div class="bookbar"><span>還原度</span><div class="bar"><span id="book-bar"></span></div><b id="book-pct">0%</b></div>
+      </div>
+      <button type="button" class="ghost" id="book-close">關閉</button>
+    </header>
+    <div id="book-body"></div>
+    <button type="button" id="btn-submit">繳交</button>
+  </aside>
+
+  <div id="submit-view" class="hidden" role="dialog">
+    <article>
+      <p class="eyebrow">提交紀錄簿</p>
+      <h2>還原的故事</h2>
+      <div id="submit-body"></div>
+      <div class="row">
+        <button type="button" class="ghost" id="submit-continue">繼續遊戲</button>
+        <button type="button" class="stamp" id="submit-end">結束遊戲</button>
+      </div>
+    </article>
+  </div>
+
+  <section class="screen" data-screen="over" id="screen-over">
+    <article class="folder">
+      <p class="eyebrow">燒書之夜</p>
+      <h2>遊戲已結束</h2>
+      <p>這一次的調查停在這裡。紀錄簿已經交出去了。</p>
+      <div class="row">
+        <button type="button" class="stamp" id="btn-restart">重新開始</button>
+      </div>
+    </article>
+  </section>
+
+  <div id="dialog" class="hidden" role="dialog">
+    <div class="who" id="dlg-who"></div>
+    <p id="dlg-text"></p>
+    <div id="dlg-buttons"></div>
+  </div>
+
+  <div id="coach" class="hidden">
+    <div class="card">
+      <h2>教員宿舍＋後院</h2>
+      <p>宿舍和後院是同一張地圖。地上兩個發光的圓是懷錶放置處。站上去按空白鍵，畫面會轉過去，才進入那個時刻。按 F 調查物件。過去裡走不出圓。</p>
+      <button type="button" class="stamp" id="coach-ok">知道了</button>
+    </div>
+  </div>
+
+  <div id="toast" role="status"></div>
+  <div id="flash"></div>
+
+  <script src="js/content.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
