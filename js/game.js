@@ -201,7 +201,12 @@
       state.clues = new Set(data.clues || []);
       state.seen = new Set(data.seen || []);
       state.slots = new Set(data.slots || []);
-      state.rels = data.rels || {};
+      const rels = data.rels || {};
+      if (rels["救過"] && !rels["救命恩人"]) {
+        rels["救命恩人"] = rels["救過"];
+        delete rels["救過"];
+      }
+      state.rels = rels;
       state.visited = new Set(data.visited || []);
       state.coachSeen = !!data.coachSeen;
       state.taughtRim = !!data.taughtRim;
@@ -608,6 +613,218 @@
     }
     return `<div class="sheet bag"><div class="colscroll"><div class="tiles">${tiles}</div></div><div class="colscroll">${detail}</div></div>`;
   }
+  function measureLabel(text, size, weight) {
+    if (!measureLabel.ctx) measureLabel.ctx = document.createElement("canvas").getContext("2d");
+    measureLabel.ctx.font = weight + " " + size + 'px "WenQuanYi Micro Hei", "PingFang TC", sans-serif';
+    const w = measureLabel.ctx.measureText(text).width;
+    return w > 0 ? w : text.length * size;
+  }
+  function relationshipSvg() {
+    const VBW = 520;
+    const VBH = 500;
+    const R = 20;
+    const GAP = 7;
+    const pos = {
+      "陳清源": [250, 78],
+      "林秀蘭": [250, 228],
+      "張志明": [430, 196],
+      "林阿土": [86, 208],
+      "李文雄": [132, 408],
+      "李文惠": [392, 408],
+    };
+    let sx = 0;
+    let sy = 0;
+    const names = Object.keys(pos);
+    for (const name of names) { sx += pos[name][0]; sy += pos[name][1]; }
+    const centroid = { x: sx / names.length, y: sy / names.length };
+    function rim(a, b) {
+      const dx = b[0] - a[0];
+      const dy = b[1] - a[1];
+      const len = Math.hypot(dx, dy) || 1;
+      const ux = dx / len;
+      const uy = dy / len;
+      return {
+        x1: a[0] + ux * R, y1: a[1] + uy * R,
+        x2: b[0] - ux * R, y2: b[1] - uy * R,
+        ux, uy, nx: -uy, ny: ux,
+        get mx() { return (this.x1 + this.x2) / 2; },
+        get my() { return (this.y1 + this.y2) / 2; },
+      };
+    }
+    const segments = RELS.map((rel) => Object.assign({ rel }, rim(pos[rel.gaps[0]], pos[rel.gaps[1]])));
+    const circles = names.map((name) => ({ x: pos[name][0], y: pos[name][1], r: R }));
+    function expand(box, pad) {
+      return { cx: box.cx, cy: box.cy, w: box.w + pad * 2, h: box.h + pad * 2 };
+    }
+    function segHitsRect(x1, y1, x2, y2, box) {
+      const left = box.cx - box.w / 2;
+      const right = box.cx + box.w / 2;
+      const top = box.cy - box.h / 2;
+      const bottom = box.cy + box.h / 2;
+      function inside(x, y) { return x >= left && x <= right && y >= top && y <= bottom; }
+      if (inside(x1, y1) || inside(x2, y2)) return true;
+      function cross(ax, ay, bx, by, cx, cy) { return (bx - ax) * (cy - ay) - (by - ay) * (cx - ax); }
+      function hit(ax, ay, bx, by, cx, cy, dx, dy) {
+        const d1 = cross(ax, ay, bx, by, cx, cy);
+        const d2 = cross(ax, ay, bx, by, dx, dy);
+        const d3 = cross(cx, cy, dx, dy, ax, ay);
+        const d4 = cross(cx, cy, dx, dy, bx, by);
+        return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
+      }
+      return hit(x1, y1, x2, y2, left, top, right, top)
+        || hit(x1, y1, x2, y2, right, top, right, bottom)
+        || hit(x1, y1, x2, y2, right, bottom, left, bottom)
+        || hit(x1, y1, x2, y2, left, bottom, left, top);
+    }
+    function clearanceToSeg(box, seg) {
+      if (segHitsRect(seg.x1, seg.y1, seg.x2, seg.y2, box)) return 0;
+      let lo = 0;
+      let hi = 64;
+      for (let i = 0; i < 7; i++) {
+        const mid = (lo + hi) / 2;
+        if (segHitsRect(seg.x1, seg.y1, seg.x2, seg.y2, expand(box, mid))) hi = mid;
+        else lo = mid;
+      }
+      return lo;
+    }
+    function rectGap(a, b) {
+      const dx = Math.abs(a.cx - b.cx) - (a.w + b.w) / 2;
+      const dy = Math.abs(a.cy - b.cy) - (a.h + b.h) / 2;
+      if (dx <= 0 && dy <= 0) return Math.max(dx, dy);
+      if (dx <= 0) return dy;
+      if (dy <= 0) return dx;
+      return Math.hypot(dx, dy);
+    }
+    function circleGap(box, c) {
+      const dx = Math.max(Math.abs(c.x - box.cx) - box.w / 2, 0);
+      const dy = Math.max(Math.abs(c.y - box.cy) - box.h / 2, 0);
+      return Math.hypot(dx, dy) - c.r;
+    }
+    function scoreBox(box, rects) {
+      let clearance = 999;
+      let bad = 0;
+      if (box.cx - box.w / 2 < 4 || box.cy - box.h / 2 < 4 || box.cx + box.w / 2 > VBW - 4 || box.cy + box.h / 2 > VBH - 4) bad += 3;
+      for (const seg of segments) {
+        const g = clearanceToSeg(box, seg);
+        clearance = Math.min(clearance, g);
+        if (g < GAP) bad += 1;
+      }
+      for (const c of circles) {
+        const g = circleGap(box, c);
+        clearance = Math.min(clearance, g);
+        if (g < GAP) bad += 1;
+      }
+      for (const r of rects) {
+        const g = rectGap(box, r);
+        clearance = Math.min(clearance, g);
+        if (g < GAP) bad += 1;
+      }
+      return { bad, clearance };
+    }
+    const nameBoxes = {};
+    const placed = [];
+    const nameOrder = ["陳清源", "張志明", "林阿土", "李文雄", "李文惠", "林秀蘭"];
+    for (const name of nameOrder) {
+      const w = Math.ceil(measureLabel(name, 14, 700)) + 4;
+      const h = 18;
+      const [cx, cy] = pos[name];
+      let best = null;
+      let bestScore = -Infinity;
+      for (let i = 0; i < 36; i++) {
+        const ang = -Math.PI / 2 + (i / 36) * Math.PI * 2;
+        const nx = Math.cos(ang);
+        const ny = Math.sin(ang);
+        const half = Math.abs(nx) * w / 2 + Math.abs(ny) * h / 2;
+        const dist = R + GAP + 2 + half;
+        const box = { cx: cx + nx * dist, cy: cy + ny * dist, w, h };
+        const scored = scoreBox(box, placed);
+        const outward = (box.cx - centroid.x) * nx + (box.cy - centroid.y) * ny;
+        const score = (scored.bad === 0 ? 400 : -80 * scored.bad) + Math.min(scored.clearance, 28) + (outward > 0 ? 8 : 0);
+        if (score > bestScore) { bestScore = score; best = box; }
+      }
+      nameBoxes[name] = best;
+      placed.push(best);
+    }
+    function badgeMetrics(rel) {
+      const g = relGaps(rel);
+      const ready = relReady(rel);
+      const mode = ready ? "ready" : ((g[0] || g[1]) ? "partial" : "pending");
+      if (mode === "pending") return { mode, w: 28, h: 22, pieces: null };
+      const pieces = [];
+      pieces.push({ kind: "slot", gap: 0, text: g[0] || "?", filled: !!g[0] });
+      if (ready) pieces.push({ kind: "word", text: rel.id });
+      pieces.push({ kind: "slot", gap: 1, text: g[1] || "?", filled: !!g[1] });
+      let w = 0;
+      for (const piece of pieces) {
+        piece.w = Math.ceil(measureLabel(piece.text, 13, 700)) + 6;
+        w += piece.w;
+      }
+      w += (pieces.length - 1) * 5;
+      return { mode, w, h: 22, pieces };
+    }
+    function textEl(cls, x, y, text, fill, size) {
+      return `<text class="${cls}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" fill="${fill}" font-size="${size}" font-weight="700" text-anchor="middle" dominant-baseline="central" pointer-events="none" stroke="#f6edd8" stroke-width="3" paint-order="stroke fill">${esc(text)}</text>`;
+    }
+    function slotEl(rel, gap, cx, cy, w, h, text, fill) {
+      const x = cx - w / 2;
+      const y = cy - h / 2;
+      const shown = text ? textEl("slot-name", cx, cy, text, fill, 13) : "";
+      return `<g class="slot name-slot edge-slot" data-accept="name" data-either="1" data-rel="${esc(rel.id)}" data-gap="${gap}">${shown}<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="3" fill="rgba(246,237,216,0.01)" pointer-events="all"/></g>`;
+    }
+    const badges = [];
+    let badgeSvg = "";
+    for (const seg of segments) {
+      const rel = seg.rel;
+      const metrics = badgeMetrics(rel);
+      const pref = ((seg.mx - centroid.x) * seg.nx + (seg.my - centroid.y) * seg.ny) >= 0 ? 1 : -1;
+      let best = null;
+      let bestScore = -Infinity;
+      for (const sign of [pref, -pref]) {
+        for (const dist of [22, 34, 48, 64, 82, 102]) {
+          for (const slide of [0, -24, 24, -48, 48, -76, 76, -104, 104]) {
+            const box = {
+              cx: seg.mx + seg.nx * sign * dist + seg.ux * slide,
+              cy: seg.my + seg.ny * sign * dist + seg.uy * slide,
+              w: metrics.w,
+              h: metrics.h,
+            };
+            const scored = scoreBox(box, placed.concat(badges));
+            const score = (scored.bad === 0 ? 600 : -120 * scored.bad) + Math.min(scored.clearance, 24) - dist * 0.35 - Math.abs(slide) * 0.12;
+            if (score > bestScore) { bestScore = score; best = box; }
+          }
+        }
+      }
+      badges.push(best);
+      const g = relGaps(rel);
+      if (metrics.mode === "pending") {
+        badgeSvg += slotEl(rel, 0, best.cx - best.w / 4, best.cy, best.w / 2, best.h, "", "");
+        badgeSvg += slotEl(rel, 1, best.cx + best.w / 4, best.cy, best.w / 2, best.h, "", "");
+        badgeSvg += textEl("edge-word", best.cx, best.cy, "?", "#3a2a1c", 13);
+      } else {
+        let x = best.cx - metrics.w / 2;
+        for (let i = 0; i < metrics.pieces.length; i++) {
+          const piece = metrics.pieces[i];
+          const pcx = x + piece.w / 2;
+          if (piece.kind === "word") badgeSvg += textEl("edge-word", pcx, best.cy, piece.text, "#3a2a1c", 13);
+          else if (piece.filled) badgeSvg += slotEl(rel, piece.gap, pcx, best.cy, piece.w, metrics.h, piece.text, personOf(piece.text).color);
+          else {
+            badgeSvg += slotEl(rel, piece.gap, pcx, best.cy, piece.w, metrics.h, "", "");
+            badgeSvg += textEl("edge-word", pcx, best.cy, "?", "#3a2a1c", 13);
+          }
+          x += piece.w + 5;
+        }
+      }
+    }
+    const lines = segments.map((seg) => `<line class="edge-line" data-rel="${esc(seg.rel.id)}" x1="${seg.x1.toFixed(1)}" y1="${seg.y1.toFixed(1)}" x2="${seg.x2.toFixed(1)}" y2="${seg.y2.toFixed(1)}" stroke="#b08968" stroke-width="1.6" pointer-events="none"/>`).join("");
+    const dots = PEOPLE.map((p) => {
+      const [x, y] = pos[p.name];
+      const nb = nameBoxes[p.name];
+      return `<circle class="node-ring" cx="${x}" cy="${y}" r="${R}" fill="#fffaf2" stroke="${p.color}" stroke-width="2.4" pointer-events="none"/>` +
+        `<image href="${PORTRAIT[p.name]}" x="${x - 15}" y="${y - 15}" width="30" height="30" clip-path="url(#face)" pointer-events="none"/>` +
+        textEl("node-name", nb.cx, nb.cy, p.name, p.color, 14);
+    }).join("");
+    return `<svg viewBox="0 0 ${VBW} ${VBH}" font-family="WenQuanYi Micro Hei, PingFang TC, Microsoft JhengHei, sans-serif"><defs><clipPath id="face" clipPathUnits="objectBoundingBox"><circle cx="0.5" cy="0.5" r="0.5"/></clipPath></defs>${lines}${dots}${badgeSvg}</svg>`;
+  }
   function peopleHtml() {
     const cards = PEOPLE.map((p) => {
       const fields = ["職業", "罪名", "結局"].map((f) => {
@@ -621,31 +838,8 @@
       }).join("");
       return `<article class="pcard" style="--c:${p.color}"><img src="${PORTRAIT[p.name]}" alt=""><div class="body"><h3 style="color:${p.color}">${esc(p.name)}</h3><p class="bio">${esc(p.role)}</p>${fields}</div></article>`;
     }).join("");
-    const nodes = {
-      "陳清源": [140, 36], "林秀蘭": [140, 120], "張志明": [228, 112],
-      "林阿土": [52, 120], "李文雄": [72, 214], "李文惠": [210, 214],
-    };
-    const edges = [
-      ["得意門生", "陳清源", "林秀蘭"], ["父親", "林阿土", "林秀蘭"], ["女友", "張志明", "林秀蘭"],
-      ["救過", "陳清源", "林阿土"], ["向好友借書", "林秀蘭", "李文惠"], ["哥哥", "李文雄", "李文惠"], ["殺了", "林阿土", "李文雄"],
-    ];
-    const lines = edges.map(([id, a, b]) => {
-      const A = nodes[a], B = nodes[b];
-      const rel = RELS.find((r) => r.id === id);
-      const label = rel && relReady(rel) ? id : "?";
-      const mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2;
-      return `<line x1="${A[0]}" y1="${A[1]}" x2="${B[0]}" y2="${B[1]}" stroke="#b08968" stroke-width="1.4"/><text x="${mx}" y="${my - 4}" fill="#3a2a1c" font-size="11" text-anchor="middle">${esc(label)}</text>`;
-    }).join("");
-    const dots = PEOPLE.map((p) => {
-      const [x, y] = nodes[p.name];
-      return `<circle cx="${x}" cy="${y}" r="18" fill="#fffaf2" stroke="${p.color}" stroke-width="2"/><image href="${PORTRAIT[p.name]}" x="${x - 14}" y="${y - 14}" width="28" height="28" clip-path="url(#face)"/><text x="${x}" y="${y + 32}" fill="${p.color}" font-size="12" font-weight="700" text-anchor="middle">${esc(p.name)}</text>`;
-    }).join("");
-    const relRows = RELS.map((rel) => {
-      const label = relReady(rel) ? rel.id : "？";
-      return `<div class="relrow">${nameBlank(rel, 0)}<span class="rellabel">${esc(label)}</span>${nameBlank(rel, 1)}</div>`;
-    }).join("");
     const nameChips = PEOPLE.map((p) => `<span class="chip namechip" data-payload="name:${esc(p.name)}" style="background:${p.color}">${esc(p.name)}</span>`).join("");
-    const web = `<div class="web"><h3>人物關係網</h3><p class="fine">把名字拖進空格。填對的名字留在那一格。</p><svg viewBox="0 0 280 260"><defs><clipPath id="face" clipPathUnits="objectBoundingBox"><circle cx="0.5" cy="0.5" r="0.5"/></clipPath></defs>${lines}${dots}</svg><div class="relrows">${relRows}</div><div class="pool">${nameChips}</div></div>`;
+    const web = `<div class="web"><h3>人物關係網</h3><p class="fine">把名字拖進空格。填對的名字留在那一格。</p><div class="pool">${nameChips}</div><div class="relmap">${relationshipSvg()}</div></div>`;
     const found = CLUES.filter((c) => c.keyword && state.clues.has(c.id));
     const pool = found.length
       ? found.map(kwChip).join("")
@@ -783,14 +977,19 @@
   }
   function tryName(name, relId, gap, slotEl) {
     const rel = RELS.find((r) => r.id === relId);
-    if (!rel || rel.gaps[gap] !== name) {
-      if (slotEl) { slotEl.classList.add("shake"); setTimeout(() => slotEl.classList.remove("shake"), 400); }
-      toast("推理錯誤");
-      return;
+    let useGap = gap;
+    if (!rel || rel.gaps[useGap] !== name) {
+      const other = gap === 0 ? 1 : 0;
+      if (rel && slotEl && slotEl.dataset.either === "1" && rel.gaps[other] === name) useGap = other;
+      else {
+        if (slotEl) { slotEl.classList.add("shake"); setTimeout(() => slotEl.classList.remove("shake"), 400); }
+        toast("推理錯誤");
+        return;
+      }
     }
     const gaps = relGaps(rel);
     const wasReady = relReady(rel);
-    gaps[gap] = name;
+    gaps[useGap] = name;
     state.picked = null;
     if (!wasReady && relReady(rel)) toast("段落" + String(rel.para).padStart(2, "0") + "已收錄");
     save();
@@ -1923,6 +2122,74 @@
     window.addEventListener("resize", resize);
   }
 
+  function mapLabelHits() {
+    const svg = document.querySelector(".web .relmap svg");
+    if (!svg) return ["missing map"];
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return ["map is not on screen"];
+    const frame = svg.getBoundingClientRect();
+    if (frame.width < 40 || frame.height < 40) return ["map is too small"];
+    function pt(x, y) {
+      const p = svg.createSVGPoint();
+      p.x = x;
+      p.y = y;
+      const s = p.matrixTransform(ctm);
+      return { x: s.x, y: s.y };
+    }
+    function rectOf(el) {
+      const b = el.getBoundingClientRect();
+      return { left: b.left, top: b.top, right: b.right, bottom: b.bottom };
+    }
+    function hitsSeg(r, a, b, pad) {
+      const left = r.left - pad;
+      const right = r.right + pad;
+      const top = r.top - pad;
+      const bottom = r.bottom + pad;
+      function inside(x, y) { return x >= left && x <= right && y >= top && y <= bottom; }
+      if (inside(a.x, a.y) || inside(b.x, b.y)) return true;
+      function cross(ax, ay, bx, by, cx, cy) { return (bx - ax) * (cy - ay) - (by - ay) * (cx - ax); }
+      function hit(ax, ay, bx, by, cx, cy, dx, dy) {
+        const d1 = cross(ax, ay, bx, by, cx, cy);
+        const d2 = cross(ax, ay, bx, by, dx, dy);
+        const d3 = cross(cx, cy, dx, dy, ax, ay);
+        const d4 = cross(cx, cy, dx, dy, bx, by);
+        return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
+      }
+      return hit(a.x, a.y, b.x, b.y, left, top, right, top)
+        || hit(a.x, a.y, b.x, b.y, right, top, right, bottom)
+        || hit(a.x, a.y, b.x, b.y, right, bottom, left, bottom)
+        || hit(a.x, a.y, b.x, b.y, left, bottom, left, top);
+    }
+    function overlap(a, b, pad) {
+      return a.left < b.right + pad && a.right > b.left - pad && a.top < b.bottom + pad && a.bottom > b.top - pad;
+    }
+    const labels = [...svg.querySelectorAll(".node-name, .edge-word, .slot-name")].map((el) => ({
+      text: el.textContent,
+      r: rectOf(el),
+    })).filter((item) => item.r.right > item.r.left && item.r.bottom > item.r.top);
+    const lines = [...svg.querySelectorAll(".edge-line")].map((el) => ({
+      rel: el.dataset.rel,
+      a: pt(+el.getAttribute("x1"), +el.getAttribute("y1")),
+      b: pt(+el.getAttribute("x2"), +el.getAttribute("y2")),
+    }));
+    const rings = [...svg.querySelectorAll(".node-ring")].map(rectOf);
+    const hits = [];
+    const pad = 1;
+    for (const label of labels) {
+      for (const ln of lines) {
+        if (hitsSeg(label.r, ln.a, ln.b, pad)) hits.push(label.text + " on " + ln.rel);
+      }
+      for (const ring of rings) {
+        if (overlap(label.r, ring, pad)) hits.push(label.text + " on a portrait");
+      }
+    }
+    for (let i = 0; i < labels.length; i++) {
+      for (let j = i + 1; j < labels.length; j++) {
+        if (overlap(labels[i].r, labels[j].r, pad)) hits.push(labels[i].text + " overlaps " + labels[j].text);
+      }
+    }
+    return hits;
+  }
   function playtest() {
     const lines = [];
     const ok = (cond, msg) => lines.push((cond ? "ok " : "FAIL ") + msg);
@@ -2066,6 +2333,10 @@
       ok(keptSlot && keptSlot.textContent === expect, "dropped story name stays in the blank (" + (keptSlot && keptSlot.textContent) + ")");
     }
     openBook("people");
+    ok(!document.querySelector(".web .relrows"), "relationship rows under the map are gone");
+    ok(!!RELS.find((r) => r.id === "救命恩人") && !RELS.find((r) => r.id === "救過"), "relationship label is 救命恩人");
+    const mapHits = mapLabelHits();
+    ok(mapHits.length === 0, "map text stays off the lines (" + mapHits.join(" | ") + ")");
     const webSlot = [...document.querySelectorAll(".web .name-slot")].find((s) => !s.textContent);
     ok(!!webSlot, "relationship map has an empty slot");
     if (webSlot) {
@@ -2086,6 +2357,14 @@
       const again = [...document.querySelectorAll(".web .name-slot")].find((s) => s.dataset.rel === relId && s.dataset.gap === gap);
       ok(again && again.textContent === expect, "relationship name is still there after redraw");
     }
+    const relBackup = JSON.parse(JSON.stringify(state.rels));
+    for (const r of RELS) state.rels[r.id] = r.gaps.slice();
+    openBook("people");
+    ok(document.querySelector(".web svg").textContent.indexOf("救命恩人") >= 0, "solved edge shows 救命恩人");
+    ok(document.querySelector(".web svg").textContent.indexOf("救過") < 0, "map does not say 救過");
+    const solvedHits = mapLabelHits();
+    ok(solvedHits.length === 0, "solved map text stays clear (" + solvedHits.join(" | ") + ")");
+    state.rels = relBackup;
     openBook("map");
     const tabs = [...document.querySelectorAll("#book [data-tab]")].map((b) => b.dataset.tab);
     ok(tabs[0] === "map" && tabs.join(",") === "map,bag,people,soup", "tab order " + tabs.join(","));
@@ -2266,7 +2545,7 @@
   if (!SHOT) load();
   const problems = selfCheck();
   window.__demo = {
-    state, enterLoc, interact, toggleWatch, percent, slotsDone, paraOpen, tryKeyword, tryName, selfCheck, problems,
+    state, enterLoc, interact, toggleWatch, percent, slotsDone, paraOpen, tryKeyword, tryName, selfCheck, problems, mapLabelHits,
     teleport(x, y) { state.px = x; state.py = y; state.dest = null; },
     press(code, on) { if (on) down.add(code); else down.delete(code); },
   };
