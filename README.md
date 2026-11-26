@@ -36,7 +36,7 @@ Progress is stored in the browser. The title screen can continue or start over.
 
 Putting the watch down shows the past inside a 160° wedge. The rest of the scene stays in the present. Picking the watch up at the same spot clears the wedge.
 
-The title screen opens the letter. The letter opens a separate controls page, then the map. Names dragged into a story blank stay in that slot. The relationship map only displays the links.
+The title screen opens the letter. The letter opens a separate controls page, then the map. Names dragged into a story blank stay in that slot. The relationship map only displays the links: each one stays ? until that relationship’s names are filled in on the story page.
 
 ## What is in the build
 

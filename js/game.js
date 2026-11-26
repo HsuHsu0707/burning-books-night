@@ -752,6 +752,7 @@
     let badgeSvg = "";
     for (const seg of segments) {
       const rel = seg.rel;
+      const shown = relReady(rel) ? rel.id : "?";
       const boxSize = { w: Math.ceil(measureLabel(rel.id, 13, 700)) + 8, h: 20 };
       const pref = ((seg.mx - centroid.x) * seg.nx + (seg.my - centroid.y) * seg.ny) >= 0 ? 1 : -1;
       let best = null;
@@ -772,7 +773,7 @@
         }
       }
       badges.push(best);
-      badgeSvg += textEl("edge-word", best.cx, best.cy, rel.id, "#3a2a1c", 13);
+      badgeSvg += textEl("edge-word", best.cx, best.cy, shown, "#3a2a1c", 13);
     }
     const lines = segments.map((seg) => `<line class="edge-line" data-rel="${esc(seg.rel.id)}" x1="${seg.x1.toFixed(1)}" y1="${seg.y1.toFixed(1)}" x2="${seg.x2.toFixed(1)}" y2="${seg.y2.toFixed(1)}" stroke="#b08968" stroke-width="1.6" pointer-events="none"/>`).join("");
     const dots = PEOPLE.map((p) => {
@@ -2285,19 +2286,41 @@
       ok(Math.abs(story2.scrollTop - beforeScroll) < 12, "story drop does not jump to the top (" + story2.scrollTop + ")");
       ok(keptSlot && keptSlot.textContent === expect, "dropped story name stays in the blank (" + (keptSlot && keptSlot.textContent) + ")");
     }
-    const relBeforeMap = JSON.stringify(state.rels);
-    const pctBeforeMap = percent();
+    const relBeforeMap = JSON.parse(JSON.stringify(state.rels));
+    state.rels = {};
     openBook("people");
     ok(!document.querySelector(".web .namechip"), "relationship map has no name chips");
     ok(!document.querySelector(".web .name-slot"), "relationship map has no name blanks");
-    const edgeWords = [...document.querySelectorAll(".web .edge-word")].map((n) => n.textContent).sort();
-    const relIds = RELS.map((r) => r.id).sort();
-    ok(edgeWords.join("|") === relIds.join("|"), "every edge shows its relationship (" + edgeWords.join(",") + ")");
-    ok(edgeWords.indexOf("?") < 0 && edgeWords.indexOf("？") < 0, "map does not hide relationships behind ?");
-    ok(document.querySelector(".sheet.soup .name-slot") === null, "story blanks are not on the relationship page");
-    const mapHits = mapLabelHits();
-    ok(mapHits.length === 0, "map text stays off the lines (" + mapHits.join(" | ") + ")");
-    ok(JSON.stringify(state.rels) === relBeforeMap && percent() === pctBeforeMap, "viewing the map does not change progress");
+    let edgeWords = [...document.querySelectorAll(".web .edge-word")].map((n) => n.textContent);
+    ok(edgeWords.length === RELS.length && edgeWords.every((w) => w === "?"), "locked map shows ? on every edge (" + edgeWords.join(",") + ")");
+    let mapHits = mapLabelHits();
+    ok(mapHits.length === 0, "locked map text stays off the lines (" + mapHits.join(" | ") + ")");
+    ok(JSON.stringify(state.rels) === "{}", "viewing the map does not write progress");
+    state.rels = { "哥哥": ["李文惠", null] };
+    openBook("people");
+    edgeWords = [...document.querySelectorAll(".web .edge-word")].map((n) => n.textContent);
+    ok(edgeWords.every((w) => w === "?"), "one correct name still leaves the edge locked");
+    tryName("李文惠", "哥哥", 0, null);
+    tryName("李文雄", "哥哥", 1, null);
+    openBook("people");
+    edgeWords = [...document.querySelectorAll(".web .edge-word")].map((n) => n.textContent);
+    ok(edgeWords.filter((w) => w === "哥哥").length === 1, "filled story paragraph reveals 哥哥");
+    ok(edgeWords.filter((w) => w === "?").length === RELS.length - 1, "other edges stay ? (" + edgeWords.join(",") + ")");
+    mapHits = mapLabelHits();
+    ok(mapHits.length === 0, "partial map text stays off the lines (" + mapHits.join(" | ") + ")");
+    const packed = JSON.parse(JSON.stringify(state.rels));
+    ok(packed["哥哥"][0] === "李文惠" && packed["哥哥"][1] === "李文雄", "revealed relationship is in the saved rels");
+    state.rels = {};
+    openBook("people");
+    ok([...document.querySelectorAll(".web .edge-word")].every((n) => n.textContent === "?"), "cleared save locks the map again");
+    state.rels = packed;
+    openBook("people");
+    ok([...document.querySelectorAll(".web .edge-word")].some((n) => n.textContent === "哥哥"), "reloading saved rels reveals 哥哥");
+    for (const r of RELS) state.rels[r.id] = r.gaps.slice();
+    openBook("people");
+    mapHits = mapLabelHits();
+    ok(mapHits.length === 0, "all revealed labels stay clear (" + mapHits.join(" | ") + ")");
+    state.rels = relBeforeMap;
     openBook("soup");
     ok(document.querySelectorAll(".sheet.soup .namechip").length === PEOPLE.length, "story page keeps the name chips");
     ok(document.querySelector(".sheet.soup .name-slot"), "story page keeps the name blanks");
