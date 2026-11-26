@@ -745,37 +745,14 @@
       nameBoxes[name] = best;
       placed.push(best);
     }
-    function badgeMetrics(rel) {
-      const g = relGaps(rel);
-      const ready = relReady(rel);
-      const mode = ready ? "ready" : ((g[0] || g[1]) ? "partial" : "pending");
-      if (mode === "pending") return { mode, w: 28, h: 22, pieces: null };
-      const pieces = [];
-      pieces.push({ kind: "slot", gap: 0, text: g[0] || "?", filled: !!g[0] });
-      if (ready) pieces.push({ kind: "word", text: rel.id });
-      pieces.push({ kind: "slot", gap: 1, text: g[1] || "?", filled: !!g[1] });
-      let w = 0;
-      for (const piece of pieces) {
-        piece.w = Math.ceil(measureLabel(piece.text, 13, 700)) + 6;
-        w += piece.w;
-      }
-      w += (pieces.length - 1) * 5;
-      return { mode, w, h: 22, pieces };
-    }
     function textEl(cls, x, y, text, fill, size) {
       return `<text class="${cls}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" fill="${fill}" font-size="${size}" font-weight="700" text-anchor="middle" dominant-baseline="central" pointer-events="none" stroke="#f6edd8" stroke-width="3" paint-order="stroke fill">${esc(text)}</text>`;
-    }
-    function slotEl(rel, gap, cx, cy, w, h, text, fill) {
-      const x = cx - w / 2;
-      const y = cy - h / 2;
-      const shown = text ? textEl("slot-name", cx, cy, text, fill, 13) : "";
-      return `<g class="slot name-slot edge-slot" data-accept="name" data-either="1" data-rel="${esc(rel.id)}" data-gap="${gap}">${shown}<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="3" fill="rgba(246,237,216,0.01)" pointer-events="all"/></g>`;
     }
     const badges = [];
     let badgeSvg = "";
     for (const seg of segments) {
       const rel = seg.rel;
-      const metrics = badgeMetrics(rel);
+      const boxSize = { w: Math.ceil(measureLabel(rel.id, 13, 700)) + 8, h: 20 };
       const pref = ((seg.mx - centroid.x) * seg.nx + (seg.my - centroid.y) * seg.ny) >= 0 ? 1 : -1;
       let best = null;
       let bestScore = -Infinity;
@@ -785,8 +762,8 @@
             const box = {
               cx: seg.mx + seg.nx * sign * dist + seg.ux * slide,
               cy: seg.my + seg.ny * sign * dist + seg.uy * slide,
-              w: metrics.w,
-              h: metrics.h,
+              w: boxSize.w,
+              h: boxSize.h,
             };
             const scored = scoreBox(box, placed.concat(badges));
             const score = (scored.bad === 0 ? 600 : -120 * scored.bad) + Math.min(scored.clearance, 24) - dist * 0.35 - Math.abs(slide) * 0.12;
@@ -795,25 +772,7 @@
         }
       }
       badges.push(best);
-      const g = relGaps(rel);
-      if (metrics.mode === "pending") {
-        badgeSvg += slotEl(rel, 0, best.cx - best.w / 4, best.cy, best.w / 2, best.h, "", "");
-        badgeSvg += slotEl(rel, 1, best.cx + best.w / 4, best.cy, best.w / 2, best.h, "", "");
-        badgeSvg += textEl("edge-word", best.cx, best.cy, "?", "#3a2a1c", 13);
-      } else {
-        let x = best.cx - metrics.w / 2;
-        for (let i = 0; i < metrics.pieces.length; i++) {
-          const piece = metrics.pieces[i];
-          const pcx = x + piece.w / 2;
-          if (piece.kind === "word") badgeSvg += textEl("edge-word", pcx, best.cy, piece.text, "#3a2a1c", 13);
-          else if (piece.filled) badgeSvg += slotEl(rel, piece.gap, pcx, best.cy, piece.w, metrics.h, piece.text, personOf(piece.text).color);
-          else {
-            badgeSvg += slotEl(rel, piece.gap, pcx, best.cy, piece.w, metrics.h, "", "");
-            badgeSvg += textEl("edge-word", pcx, best.cy, "?", "#3a2a1c", 13);
-          }
-          x += piece.w + 5;
-        }
-      }
+      badgeSvg += textEl("edge-word", best.cx, best.cy, rel.id, "#3a2a1c", 13);
     }
     const lines = segments.map((seg) => `<line class="edge-line" data-rel="${esc(seg.rel.id)}" x1="${seg.x1.toFixed(1)}" y1="${seg.y1.toFixed(1)}" x2="${seg.x2.toFixed(1)}" y2="${seg.y2.toFixed(1)}" stroke="#b08968" stroke-width="1.6" pointer-events="none"/>`).join("");
     const dots = PEOPLE.map((p) => {
@@ -838,8 +797,7 @@
       }).join("");
       return `<article class="pcard" style="--c:${p.color}"><img src="${PORTRAIT[p.name]}" alt=""><div class="body"><h3 style="color:${p.color}">${esc(p.name)}</h3><p class="bio">${esc(p.role)}</p>${fields}</div></article>`;
     }).join("");
-    const nameChips = PEOPLE.map((p) => `<span class="chip namechip" data-payload="name:${esc(p.name)}" style="background:${p.color}">${esc(p.name)}</span>`).join("");
-    const web = `<div class="web"><h3>人物關係網</h3><p class="fine">把名字拖進空格。填對的名字留在那一格。</p><div class="pool">${nameChips}</div><div class="relmap">${relationshipSvg()}</div></div>`;
+    const web = `<div class="web"><h3>人物關係網</h3><div class="relmap">${relationshipSvg()}</div></div>`;
     const found = CLUES.filter((c) => c.keyword && state.clues.has(c.id));
     const pool = found.length
       ? found.map(kwChip).join("")
@@ -977,19 +935,14 @@
   }
   function tryName(name, relId, gap, slotEl) {
     const rel = RELS.find((r) => r.id === relId);
-    let useGap = gap;
-    if (!rel || rel.gaps[useGap] !== name) {
-      const other = gap === 0 ? 1 : 0;
-      if (rel && slotEl && slotEl.dataset.either === "1" && rel.gaps[other] === name) useGap = other;
-      else {
-        if (slotEl) { slotEl.classList.add("shake"); setTimeout(() => slotEl.classList.remove("shake"), 400); }
-        toast("推理錯誤");
-        return;
-      }
+    if (!rel || rel.gaps[gap] !== name) {
+      if (slotEl) { slotEl.classList.add("shake"); setTimeout(() => slotEl.classList.remove("shake"), 400); }
+      toast("推理錯誤");
+      return;
     }
     const gaps = relGaps(rel);
     const wasReady = relReady(rel);
-    gaps[useGap] = name;
+    gaps[gap] = name;
     state.picked = null;
     if (!wasReady && relReady(rel)) toast("段落" + String(rel.para).padStart(2, "0") + "已收錄");
     save();
@@ -2332,39 +2285,22 @@
       ok(Math.abs(story2.scrollTop - beforeScroll) < 12, "story drop does not jump to the top (" + story2.scrollTop + ")");
       ok(keptSlot && keptSlot.textContent === expect, "dropped story name stays in the blank (" + (keptSlot && keptSlot.textContent) + ")");
     }
+    const relBeforeMap = JSON.stringify(state.rels);
+    const pctBeforeMap = percent();
     openBook("people");
-    ok(!document.querySelector(".web .relrows"), "relationship rows under the map are gone");
-    ok(!!RELS.find((r) => r.id === "救命恩人") && !RELS.find((r) => r.id === "救過"), "relationship label is 救命恩人");
+    ok(!document.querySelector(".web .namechip"), "relationship map has no name chips");
+    ok(!document.querySelector(".web .name-slot"), "relationship map has no name blanks");
+    const edgeWords = [...document.querySelectorAll(".web .edge-word")].map((n) => n.textContent).sort();
+    const relIds = RELS.map((r) => r.id).sort();
+    ok(edgeWords.join("|") === relIds.join("|"), "every edge shows its relationship (" + edgeWords.join(",") + ")");
+    ok(edgeWords.indexOf("?") < 0 && edgeWords.indexOf("？") < 0, "map does not hide relationships behind ?");
+    ok(document.querySelector(".sheet.soup .name-slot") === null, "story blanks are not on the relationship page");
     const mapHits = mapLabelHits();
     ok(mapHits.length === 0, "map text stays off the lines (" + mapHits.join(" | ") + ")");
-    const webSlot = [...document.querySelectorAll(".web .name-slot")].find((s) => !s.textContent);
-    ok(!!webSlot, "relationship map has an empty slot");
-    if (webSlot) {
-      const expect = RELS.find((r) => r.id === webSlot.dataset.rel).gaps[Number(webSlot.dataset.gap)];
-      const relId = webSlot.dataset.rel;
-      const gap = webSlot.dataset.gap;
-      webSlot.scrollIntoView({ block: "center", inline: "center" });
-      const webChip = [...document.querySelectorAll(".web .namechip")].find((c) => c.textContent === expect);
-      const cr = webChip.getBoundingClientRect();
-      const sr = webSlot.getBoundingClientRect();
-      const opts = { bubbles: true, cancelable: true, pointerId: 1, pointerType: "mouse", isPrimary: true };
-      webChip.dispatchEvent(new PointerEvent("pointerdown", Object.assign({ clientX: cr.left + 10, clientY: cr.top + 8, button: 0, buttons: 1 }, opts)));
-      window.dispatchEvent(new PointerEvent("pointermove", Object.assign({ clientX: sr.left + sr.width / 2, clientY: sr.top + sr.height / 2, button: 0, buttons: 1 }, opts)));
-      window.dispatchEvent(new PointerEvent("pointerup", Object.assign({ clientX: sr.left + sr.width / 2, clientY: sr.top + sr.height / 2, button: 0, buttons: 0 }, opts)));
-      const stayed = [...document.querySelectorAll(".web .name-slot")].find((s) => s.dataset.rel === relId && s.dataset.gap === gap);
-      ok(stayed && stayed.textContent === expect, "dropped relationship name stays (" + (stayed && stayed.textContent) + " / " + expect + ")");
-      openBook("people");
-      const again = [...document.querySelectorAll(".web .name-slot")].find((s) => s.dataset.rel === relId && s.dataset.gap === gap);
-      ok(again && again.textContent === expect, "relationship name is still there after redraw");
-    }
-    const relBackup = JSON.parse(JSON.stringify(state.rels));
-    for (const r of RELS) state.rels[r.id] = r.gaps.slice();
-    openBook("people");
-    ok(document.querySelector(".web svg").textContent.indexOf("救命恩人") >= 0, "solved edge shows 救命恩人");
-    ok(document.querySelector(".web svg").textContent.indexOf("救過") < 0, "map does not say 救過");
-    const solvedHits = mapLabelHits();
-    ok(solvedHits.length === 0, "solved map text stays clear (" + solvedHits.join(" | ") + ")");
-    state.rels = relBackup;
+    ok(JSON.stringify(state.rels) === relBeforeMap && percent() === pctBeforeMap, "viewing the map does not change progress");
+    openBook("soup");
+    ok(document.querySelectorAll(".sheet.soup .namechip").length === PEOPLE.length, "story page keeps the name chips");
+    ok(document.querySelector(".sheet.soup .name-slot"), "story page keeps the name blanks");
     openBook("map");
     const tabs = [...document.querySelectorAll("#book [data-tab]")].map((b) => b.dataset.tab);
     ok(tabs[0] === "map" && tabs.join(",") === "map,bag,people,soup", "tab order " + tabs.join(","));
